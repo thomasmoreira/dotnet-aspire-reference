@@ -8,10 +8,15 @@ var builder = DistributedApplication.CreateBuilder(args);
 var postgres = builder.AddPostgres("postgres");
 var catalogDb = postgres.AddDatabase("catalogdb");
 
-// Catalog service. WithReference injects the "catalogdb" connection string; WaitFor holds
-// startup until the database resource reports healthy (so seeding never races the container).
+// Redis cache (also a container) for the Catalog's read-through product lookups.
+var cache = builder.AddRedis("cache");
+
+// Catalog service. WithReference injects the connection strings; WaitFor holds startup until
+// each dependency reports healthy (so seeding never races the Postgres container).
 builder.AddProject<Projects.Catalog>("catalog")
     .WithReference(catalogDb)
-    .WaitFor(catalogDb);
+    .WithReference(cache)
+    .WaitFor(catalogDb)
+    .WaitFor(cache);
 
 builder.Build().Run();
