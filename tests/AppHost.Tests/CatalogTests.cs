@@ -6,7 +6,8 @@ namespace AppHost.Tests;
 /// Exercises the Catalog over HTTP against the live distributed app: the seeded list from
 /// Postgres, and a single product served through the Redis read-through cache.
 /// </summary>
-public class CatalogTests(AppHostFixture fixture) : IClassFixture<AppHostFixture>
+[Collection("aspire-app")]
+public class CatalogTests(AppHostFixture fixture)
 {
     [Fact]
     public async Task Products_endpoint_returns_the_seeded_list()
