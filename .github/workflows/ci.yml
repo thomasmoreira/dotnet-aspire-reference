@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      # EnforceCodeStyleInBuild + TreatWarningsAsErrors turn analyzer/style issues into build
+      # failures, so a green build is also a green lint. The Aspire integration tests need a
+      # Docker runtime and run locally (see ADR-005) — CI guarantees the whole solution compiles.
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
