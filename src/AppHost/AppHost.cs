@@ -11,12 +11,22 @@ var catalogDb = postgres.AddDatabase("catalogdb");
 // Redis cache (also a container) for the Catalog's read-through product lookups.
 var cache = builder.AddRedis("cache");
 
-// Catalog service. WithReference injects the connection strings; WaitFor holds startup until
-// each dependency reports healthy (so seeding never races the Postgres container).
-builder.AddProject<Projects.Catalog>("catalog")
+// Catalog owns product identity/naming, backed by Postgres + Redis.
+var catalog = builder.AddProject<Projects.Catalog>("catalog")
     .WithReference(catalogDb)
     .WithReference(cache)
     .WaitFor(catalogDb)
     .WaitFor(cache);
+
+// Pricing owns the money. No backing store — deterministic demo pricing.
+var pricing = builder.AddProject<Projects.Pricing>("pricing");
+
+// Gateway (BFF) composes Catalog + Pricing. WithReference wires service discovery so the
+// Gateway reaches them by name; one request fans out into a single distributed trace.
+builder.AddProject<Projects.Gateway>("gateway")
+    .WithReference(catalog)
+    .WithReference(pricing)
+    .WaitFor(catalog)
+    .WaitFor(pricing);
 
 builder.Build().Run();

@@ -13,6 +13,8 @@
 
   <ItemGroup Label="Orchestrated services">
     <ProjectReference Include="../Catalog/Catalog.csproj" />
+    <ProjectReference Include="../Pricing/Pricing.csproj" />
+    <ProjectReference Include="../Gateway/Gateway.csproj" />
   </ItemGroup>
 
 </Project>
