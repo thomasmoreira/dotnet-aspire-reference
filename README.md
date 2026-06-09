@@ -76,12 +76,54 @@ pelos ServiceDefaults, sem código de plumbing.
 # templates do Aspire (uma vez)
 dotnet new install Aspire.ProjectTemplates
 
-# sobe os serviços + Postgres + Redis + dashboard
+# sobe os 3 serviços + Postgres + Redis + dashboard
 dotnet run --project src/AppHost
 #   → o console imprime a URL do dashboard (com token de login)
+```
 
-# verificação ao vivo (sobe a app inteira num teste, valida o fluxo, e dá teardown limpo)
+### Ver o trace distribuído (o killer detail)
+
+1. Com o AppHost rodando, dispare uma request real no Gateway:
+   ```bash
+   curl http://localhost:<porta-do-gateway>/storefront/1     # porta no dashboard, recurso "gateway"
+   ```
+2. Abra o **dashboard** → aba **Traces** → clique no trace de `GET /storefront/1`.
+3. Você vê **um único trace** com spans aninhados cruzando os 3 serviços:
+   `Gateway` → `Catalog` (→ `cache get` no Redis, `db query` no Postgres) → `Pricing`.
+   Em `GET /storefront` (lista), o trace mostra o **fan-out**: um span do Catalog + N do Pricing.
+
+### Endpoints
+
+| Serviço | Endpoint | O quê |
+|---|---|---|
+| Gateway | `GET /storefront/{id}` | Compõe Catalog + Pricing num item (gera o trace distribuído) |
+| Gateway | `GET /storefront` | Lista completa, com fan-out de preço por item |
+| Catalog | `GET /products` · `GET /products/{id}` | Produtos do Postgres; o por-id passa pelo cache Redis |
+| Pricing | `GET /price/{id}` | Preço do produto |
+| (todos) | `GET /health` · `GET /alive` | Health checks (em Development) |
+
+### Verificação ao vivo
+
+```bash
+# sobe a app inteira (Postgres + Redis + Catalog + Pricing + Gateway) num teste e dá teardown limpo
 dotnet test
+```
+
+`Aspire.Hosting.Testing` exercita o fluxo de ponta a ponta — lista semeada, produto via cache,
+e o `/storefront` compondo Catalog + Pricing — com containers reais (ADR-005).
+
+## Estrutura
+
+```
+src/
+  AppHost/          — orquestração (Aspire.Hosting): Postgres, Redis, os 3 serviços, WaitFor + health
+  ServiceDefaults/  — AddServiceDefaults(): OTel + health + service discovery + resiliência
+  Gateway/          — BFF; compõe Catalog + Pricing por service discovery
+  Catalog/          — produtos no Postgres + cache no Redis (integrações Aspire.Npgsql / Aspire.StackExchange.Redis)
+  Pricing/          — preço por produto
+tests/
+  AppHost.Tests/    — Aspire.Hosting.Testing; fixture de coleção (sobe o app uma vez)
+docs/adr/           — decisões de arquitetura
 ```
 
 ## Decisões de arquitetura
