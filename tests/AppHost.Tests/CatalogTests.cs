@@ -3,34 +3,35 @@ using System.Text.Json;
 namespace AppHost.Tests;
 
 /// <summary>
-/// Spins up the whole distributed app (AppHost → Postgres container + Catalog) via
-/// Aspire.Hosting.Testing, then asserts the Catalog serves its seeded data over HTTP.
-/// This is the lab's live verification — real containers, started and torn down cleanly.
+/// Exercises the Catalog over HTTP against the live distributed app: the seeded list from
+/// Postgres, and a single product served through the Redis read-through cache.
 /// </summary>
-public class CatalogTests
+public class CatalogTests(AppHostFixture fixture) : IClassFixture<AppHostFixture>
 {
-    private static readonly TimeSpan Timeout = TimeSpan.FromMinutes(3);
-
     [Fact]
-    public async Task Catalog_serves_seeded_products_from_postgres()
+    public async Task Products_endpoint_returns_the_seeded_list()
     {
-        using var cts = new CancellationTokenSource(Timeout);
-        var ct = cts.Token;
+        using var client = fixture.App.CreateHttpClient("catalog");
 
-        var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.AppHost>(ct);
-
-        await using var app = await appHost.BuildAsync(ct);
-        await app.StartAsync(ct);
-
-        await app.ResourceNotifications.WaitForResourceHealthyAsync("catalog", ct);
-
-        using var client = app.CreateHttpClient("catalog");
-        using var response = await client.GetAsync("/products", ct);
+        using var response = await client.GetAsync("/products");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-        var json = await response.Content.ReadAsStringAsync(ct);
+        var json = await response.Content.ReadAsStringAsync();
         using var document = JsonDocument.Parse(json);
         Assert.Equal(5, document.RootElement.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task Product_by_id_is_served_through_the_redis_cache()
+    {
+        using var client = fixture.App.CreateHttpClient("catalog");
+
+        // First call: cache miss → Postgres → populates Redis. Second call: cache hit.
+        using var miss = await client.GetAsync("/products/1");
+        using var hit = await client.GetAsync("/products/1");
+
+        Assert.Equal(HttpStatusCode.OK, miss.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, hit.StatusCode);
+        Assert.Contains("Mechanical Keyboard", await hit.Content.ReadAsStringAsync());
     }
 }
