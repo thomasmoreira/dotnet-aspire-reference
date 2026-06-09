@@ -58,6 +58,12 @@ GET /storefront (Gateway)
 └─ GET /price/{id} (Pricing)
 ```
 
+Captura real do dashboard — uma request `GET /storefront/{id}` como **um único trace**
+(5 recursos · profundidade 4 · 8 spans · ~36ms) cruzando Gateway → Catalog (`redis GET` +
+`postgresql` + `redis SETEX`) → Pricing:
+
+![Trace distribuído no dashboard do .NET Aspire: GET /storefront/{id} cruzando Gateway, Catalog, Redis, Postgres e Pricing num único trace](docs/images/distributed-trace.png)
+
 A propagação de contexto (W3C `traceparent`) é automática — o `HttpClient` é instrumentado
 pelos ServiceDefaults, sem código de plumbing.
 
