@@ -17,6 +17,26 @@ var app = builder.Build();
 
 app.MapDefaultEndpoints();
 
+// The full storefront: one call to Catalog for the list, then a price per item from Pricing.
+// This fan-out shows up as a richer distributed trace (one Catalog span + N Pricing spans).
+app.MapGet("/storefront", async (IHttpClientFactory factory, CancellationToken ct) =>
+{
+    var catalog = factory.CreateClient("catalog");
+    var pricing = factory.CreateClient("pricing");
+
+    var products = await catalog.GetFromJsonAsync<List<ProductDto>>("/products", ct) ?? [];
+
+    var items = new List<StorefrontItem>(products.Count);
+    foreach (var product in products)
+    {
+        var price = await pricing.GetFromJsonAsync<PriceDto>($"/price/{product.Id}", ct);
+        items.Add(new StorefrontItem(
+            product.Id, product.Name, product.Sku, price?.Amount ?? 0m, price?.Currency ?? "BRL"));
+    }
+
+    return Results.Ok(items);
+});
+
 // One real request → a distributed trace crossing Gateway → Catalog (→ Postgres/Redis) → Pricing.
 app.MapGet("/storefront/{id:int}", async (int id, IHttpClientFactory factory, CancellationToken ct) =>
 {

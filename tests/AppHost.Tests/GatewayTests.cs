@@ -28,6 +28,23 @@ public class GatewayTests(AppHostFixture fixture)
     }
 
     [Fact]
+    public async Task Storefront_list_fans_out_to_all_products_with_prices()
+    {
+        using var client = fixture.App.CreateHttpClient("gateway");
+
+        using var response = await client.GetAsync("/storefront");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(json);
+        Assert.Equal(5, document.RootElement.GetArrayLength());
+        foreach (var item in document.RootElement.EnumerateArray())
+        {
+            Assert.True(item.GetProperty("price").GetDecimal() > 0);
+        }
+    }
+
+    [Fact]
     public async Task Storefront_returns_404_for_unknown_product()
     {
         using var client = fixture.App.CreateHttpClient("gateway");
