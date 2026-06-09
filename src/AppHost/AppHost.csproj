@@ -6,4 +6,12 @@
     <UserSecretsId>9397d28b-c7af-4a33-9645-43fbf2ae7522</UserSecretsId>
   </PropertyGroup>
 
+  <ItemGroup Label="Aspire hosting integrations">
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup Label="Orchestrated services">
+    <ProjectReference Include="../Catalog/Catalog.csproj" />
+  </ItemGroup>
+
 </Project>
